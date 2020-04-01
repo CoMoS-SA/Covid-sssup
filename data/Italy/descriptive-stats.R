@@ -1,33 +1,32 @@
 library(tidyverse)
 library(lubridate)
-library(Hmisc)
 
 
-# Percorso base GitHub per le tabelle giornaliere
-url_path <- "https://raw.githubusercontent.com/pcm-dpc/COVID-19/master/dati-regioni/dpc-covid19-ita-regioni.csv"
+# Scaricare tabella riepilogativa dati regionali ----
+dati_regionali <- read_csv(
+  # Percorso tabella riepilogativa, aggiornata giornalmente
+  "https://raw.githubusercontent.com/pcm-dpc/COVID-19/master/dati-regioni/dpc-covid19-ita-regioni.csv",
+  # Schema tabella: specifica tipo di dato colonne
+  col_types = cols(
+    .default = col_double(),
+    data = col_datetime(),
+    stato = col_character(),
+    codice_regione = col_character(),
+    denominazione_regione = col_character(),
+    note_it = col_character(),
+    note_en = col_character()
+  )) %>%
+  rename("regione" = "denominazione_regione")
 
-# Specifica per la lettura colonne delle tabelle .csv
-cols_specs <- cols(
-  .default = col_double(),
-  data = col_datetime(),
-  stato = col_character(),
-  codice_regione = col_character(),
-  denominazione_regione = col_character(),
-  note_it = col_character(),
-  note_en = col_character()
-)
 
-# La specifica è ottenuta partendo dai guess fatti dal parser di readr
-# Importa i dati totali una tantum
-
-dati_regionali <- read_csv(url_path,col_types = cols_specs)
-dati_regionali <- dati_regionali %>% rename("regione" = "denominazione_regione") %>% 
+# Calcolo incremento giornalieri
+dati_regionali <- dati_regionali %>% 
   group_by(regione) %>% 
-  mutate(nuovi_deceduti      = deceduti - Lag(deceduti,1),
-         nuovi_ospedalizzati = totale_ospedalizzati - Lag(totale_ospedalizzati,1),
-         nuovi_terapia_int   = terapia_intensiva - Lag(terapia_intensiva,1),
-         nuovi_tamponi       = tamponi - Lag(tamponi,1),
-         nuovi_positivi      = totale_casi - Lag(totale_casi,1)) %>% 
+  mutate(nuovi_deceduti      = deceduti - lag(deceduti,1),
+         nuovi_ospedalizzati = totale_ospedalizzati - lag(totale_ospedalizzati,1),
+         nuovi_terapia_int   = terapia_intensiva - lag(terapia_intensiva,1),
+         nuovi_tamponi       = tamponi - lag(tamponi,1),
+         nuovi_positivi      = totale_casi - lag(totale_casi,1)) %>% 
   ungroup()
 
 
@@ -77,7 +76,7 @@ df.cov %>%
   select(data,lat,totale_casi,denominazione_regione,tot_reg_lat,latitudine) -> df.temp
 
 ## Cambia ordine fattori e seleziona colori per numero regioni considerate
-df.temp$latitudine  <- factor(df.temp$latitudine,levels = c("Nord","Centro","Sud"))
+df.temp$latitudine  <- factor(df.temp$latitudine, levels = c("Nord","Centro","Sud"))
 colourCount         <- length(unique(df.temp$denominazione_regione))
 getPalette          <- colorRampPalette(brewer.pal(9, "Paired"))
 
