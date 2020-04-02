@@ -1,7 +1,9 @@
 library(tidyverse)
 library(lubridate)
 library(directlabels)
+library(ggthemes)
 library(scales)
+library(tibbletime)
 
 
 # Ripartizioni geografiche ----
@@ -106,14 +108,10 @@ dati_regioni_colpite <- dati_regionali %>%
 ggplot(dati_regioni_colpite, aes(x = data, y = totale_casi, group = regione, label = regione, color = reg_colpita, shape = reg_colpita)) +
   geom_line(size = 0.6) +
   geom_point() +
-  # divide il grafico per ripartizione
   facet_grid(~ ripartizione_3) +
-  # aggiunge nomi regioni accanto alle linee
   geom_dl(method = "smart.grid", cex = 0.8) +
-  # scala verticale logaritmica, orizzontale date spaziate 1 settimanat
   scale_y_log10() + annotation_logticks(sides = "l") +
   scale_x_date(breaks = "1 week", date_labels = "%d %b") +
-  # scala colore linee e forme punti a N unità, ripetute tra ripartizioni 
   scale_color_manual(values = brewer.pal(n = nr_regioni_colpite, 'Set2') %>% rep(3)) +
   scale_shape_manual(values = c(0, 1, 2, 4) %>% rep(3)) +
   theme(
@@ -124,3 +122,30 @@ ggplot(dati_regioni_colpite, aes(x = data, y = totale_casi, group = regione, lab
     title = "Curva Epidemica Per Regioni in Aree Geografiche", subtitle = "Scala logaritmica",
     x = NULL, y = "Totale Casi"
   )
+
+rm(df.temp)
+
+# Tasso tamponi positivi ----
+
+# Definisce funzione per calcolo media mobile su due giorni
+rolling_mean <- rollify(mean, window = 2)
+
+dati_regionali %>% 
+  group_by(regione) %>% 
+  filter(regione %in% c("Lombardia", "Veneto", "Emilia-Romagna", "Toscana", "Lazio", "Piemonte", "Campania")) %>% 
+  mutate(tasso_positivi = rolling_mean(totale_positivi / tamponi)) %>%
+  ggplot(aes(x = data, y = tasso_positivi, color = regione, label = regione)) + 
+  geom_dl(method = "last.qp") +
+  geom_point() + geom_line() + 
+  theme(
+    legend.position = "none", 
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) + 
+  scale_x_date(breaks = "1 week", date_labels = "%d %b", limits = c(ymd(2020-02-28), max(dati_regionali$data) + days(3))) +
+  scale_y_continuous(labels = scales::percent) + 
+  labs(
+    title = "Tasso di test tampone positivi",
+    y = "Tamponi positivi su tamponi effettuati", x = NULL,
+    subtitle = "Media mobile di 2 giorni"
+  )
+  
