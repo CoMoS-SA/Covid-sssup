@@ -149,3 +149,23 @@ dati_regionali %>%
     subtitle = "Media mobile di 2 giorni"
   )
   
+
+# Nuovi tamponi e nuovi positivi ----
+
+dati_regionali %>% 
+  filter(regione %in% c("Lombardia", "Veneto", "Piemonte", "Emilia-Romagna", "Toscana", "Lazio")) %>% 
+  mutate(regione = fct_relevel(regione, "Lombardia", "Veneto", "Piemonte", "Emilia-Romagna", "Toscana", "Lazio")) %>% 
+  select(data, regione, nuovi_tamponi, nuovi_positivi) %>% 
+  pivot_longer(cols = nuovi_tamponi:nuovi_positivi) %>% 
+  ggplot(aes(x = data, y = value, fill = name)) + 
+  geom_col(position = "dodge") + 
+  facet_wrap(~regione) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  scale_x_date(breaks = "1 week", date_labels = "%d %b", limits = c(ymd(2020-02-28), max(dati_regionali$data) + days(3))) +
+  scale_y_continuous(labels = scales::comma) + 
+  theme(legend.position = "top") +
+  labs(
+    title = "Tamponi effettuati e positivi",
+    x = NULL,
+    subtitle = "Incremento giornaliero"
+  )
