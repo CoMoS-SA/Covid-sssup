@@ -152,20 +152,25 @@ dati_regionali %>%
 
 # Nuovi tamponi e nuovi positivi ----
 
+# Elenco ordinato di regioni da includere nel grafico
+regioni_scelte <- c("Lombardia", "Veneto", "Piemonte", "Emilia-Romagna", "Toscana", "Lazio")
+
 dati_regionali %>% 
-  filter(regione %in% c("Lombardia", "Veneto", "Piemonte", "Emilia-Romagna", "Toscana", "Lazio")) %>% 
-  mutate(regione = fct_relevel(regione, "Lombardia", "Veneto", "Piemonte", "Emilia-Romagna", "Toscana", "Lazio")) %>% 
+  # Selezione regioni, e ordina livelli fattore (e quindi posizione grafico) secondo elenco
+  filter(regione %in% regioni_scelte) %>% 
+  mutate(regione = fct_relevel(regione, regioni_scelte)) %>%
+  # ristruttura dati per includere le variabili nuovi_tamponi e nuovi_positivi
   select(data, regione, nuovi_tamponi, nuovi_positivi) %>% 
   pivot_longer(cols = nuovi_tamponi:nuovi_positivi) %>% 
   ggplot(aes(x = data, y = value, fill = name)) + 
   geom_col(position = "dodge") + 
   facet_wrap(~regione) + 
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
-  scale_x_date(breaks = "1 week", date_labels = "%d %b", limits = c(ymd(2020-02-28), max(dati_regionali$data) + days(3))) +
+  scale_x_date(breaks = "1 week", date_labels = "%d %b") +
   scale_y_continuous(labels = scales::comma) + 
   theme(legend.position = "top") +
   labs(
     title = "Tamponi effettuati e positivi",
-    x = NULL,
+    x = NULL, y = "Nuovi tamponi o positivi",
     subtitle = "Incremento giornaliero"
   )
