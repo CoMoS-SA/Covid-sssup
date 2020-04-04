@@ -4,12 +4,12 @@ library(directlabels)
 library(ggthemes)
 library(scales)
 library(tibbletime)
-
+library(RColorBrewer)
 
 # Ripartizioni geografiche ----
 # Ripartizione a 5: Nord-ovest, Nord-est, Centro, Sud, Isole (definizione Istat)
 # Ripartizione a 3: Nord, Centro, Sud
-rip_regioni <- read_csv("ripartizione_regioni.csv", col_types = "ccc") %>% 
+rip_regioni <- read_csv("data/Italy/ripartizione_regioni.csv", col_types = "ccc") %>% 
   mutate(
     ripartizione_3 = factor(ripartizione_3) %>% fct_inorder(),
     ripartizione_5 = factor(ripartizione_5) %>% fct_inorder()
@@ -108,7 +108,7 @@ dati_regioni_colpite <- dati_regionali %>%
 ggplot(dati_regioni_colpite, aes(x = data, y = totale_casi, group = regione, label = regione, color = reg_colpita, shape = reg_colpita)) +
   geom_line(size = 0.6) +
   geom_point() +
-  facet_grid(~ ripartizione_3) +
+  facet_grid(~ ripartizione_5) +
   geom_dl(method = "smart.grid", cex = 0.8) +
   scale_y_log10() + annotation_logticks(sides = "l") +
   scale_x_date(breaks = "1 week", date_labels = "%d %b") +
@@ -150,7 +150,7 @@ dati_regionali %>%
   )
   
 
-# Nuovi tamponi e nuovi positivi ----
+ # Nuovi tamponi e nuovi positivi ----
 
 # Elenco ordinato di regioni da includere nel grafico
 regioni_scelte <- c("Lombardia", "Veneto", "Piemonte", "Emilia-Romagna", "Toscana", "Lazio")
