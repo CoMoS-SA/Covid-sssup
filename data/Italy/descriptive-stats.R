@@ -174,3 +174,47 @@ dati_regionali %>%
     x = NULL, y = "Nuovi tamponi o positivi",
     subtitle = "Incremento giornaliero"
   )
+
+## Incrementi Giornalieri per Regione ----
+
+dati_regionali %>% 
+  # Selezione regioni, e ordina livelli fattore (e quindi posizione grafico) secondo elenco
+  filter(regione %in% regioni_scelte) %>% 
+  mutate(regione = fct_relevel(regione, regioni_scelte)) %>%
+  # ristruttura dati per includere le variabili nuovi_tamponi e nuovi_positivi
+  select(data, regione, nuovi_deceduti, nuovi_positivi,nuovi_terapia_int) %>% 
+  pivot_longer(cols = nuovi_deceduti:nuovi_positivi:nuovi_terapia_int) %>% 
+  ggplot(aes(x = data, y = value, fill = name)) + 
+  geom_col(position = "dodge") + 
+  facet_wrap(facets = ~ name + regione,as.table = T,ncol = length(regioni_scelte),scales = "free_y") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  scale_x_date(breaks = "1 week", date_labels = "%d %b") +
+  scale_y_continuous(labels = scales::comma) + 
+  theme(legend.position = "top") +
+  labs(
+    title = "Positivi, Terapie Intensive, Deceduti",
+    x = NULL, y = NULL,
+    subtitle = "Incremento giornaliero"
+    )
+
+## Curve di casi Totale per Regione ----
+
+dati_regionali %>% 
+  # Selezione regioni, e ordina livelli fattore (e quindi posizione grafico) secondo elenco
+  filter(regione %in% regioni_scelte) %>% 
+  mutate(regione = fct_relevel(regione, regioni_scelte)) %>%
+  # ristruttura dati per includere le variabili nuovi_tamponi e nuovi_positivi
+  select(data, regione, deceduti,totale_positivi,terapia_intensiva) %>% 
+  pivot_longer(cols = deceduti:totale_positivi:terapia_intensiva) %>% 
+  ggplot(aes(x = data, y = value, fill = name)) + 
+  geom_col(position = "dodge") + 
+  facet_wrap(facets = ~ name + regione,as.table = T,ncol = length(regioni_scelte),scales = "free_y") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  scale_x_date(breaks = "1 week", date_labels = "%d %b") +
+  scale_y_continuous(labels = scales::comma) + 
+  theme(legend.position = "top") +
+  labs(
+    title = "Positivi, Terapie Intensive, Deceduti",
+    x = NULL, y = NULL,
+    subtitle = "Totali per Regione"
+  )
