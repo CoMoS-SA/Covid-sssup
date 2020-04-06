@@ -53,8 +53,6 @@ dati_regionali <- read_csv(
   # Data come giorno, rimuovendo ora del giorno
   mutate(data = as.Date(data))
 
-
-
 # Calcolo incremento giornalieri
 dati_regionali <- dati_regionali %>%
   group_by(regione) %>%
@@ -66,14 +64,38 @@ dati_regionali <- dati_regionali %>%
     nuovi_positivi = totale_casi - lag(totale_casi, 1)
   ) %>%
   ungroup()
+
+
+# Elenco ordinato di regioni da includere nel grafico
+regioni_scelte <- c("Lombardia", "Veneto", "Piemonte", "Emilia-Romagna", "Toscana", "Lazio")
 ```
 
 
+# Progressione relativa
+```{r}
+# Elenco ordinato di regioni da includere nel grafico
+regioni_scelte <- c("Lombardia", "Veneto", "Piemonte", "Emilia-Romagna", "Toscana")
 
-# Grafici andamento regionale ----
+dati_regionali %>%
+  mutate(regione_evidenziata  = if_else(regione %in% regioni_scelte, regione, NA_character_)) %>% 
+  group_by(regione) %>% 
+  filter(totale_casi >= 10) %>% 
+  mutate(giorno_epidemia = 1:n()) %>% 
+  ggplot(aes(x = giorno_epidemia, y = totale_casi, group= regione, color = regione_evidenziata)) +
+  geom_point(data = . %>% filter(!is.na(regione_evidenziata)), size = 1) +
+  geom_line() +
+  scale_y_log10() + annotation_logticks(sides = "l") +
+  labs(
+    title = "Progressione casi totali COVID-19", subtitle = "Per Regione o Provincia Autonoma",
+    x = "Giorni trascorsi dopo il decimo caso", y = "Casi totali (scala logaritmica)"
+  )
+```
+
+
+# Grafici andamento regionale nel tempo
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 dati_regionali %>%
-  ggplot(aes(x = data, y = totale_casi)) +
+  ggplot(aes(x = data, y = totale_casi, color = ripartizione_5)) +
   geom_point() +
   geom_line() +
   scale_y_log10() + annotation_logticks(sides = "l") +
@@ -102,9 +124,6 @@ dati_regionali %>%
 
 # Incrementi Giornalieri per Regione 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-# Elenco ordinato di regioni da includere nel grafico
-regioni_scelte <- c("Lombardia", "Veneto", "Piemonte", "Emilia-Romagna", "Toscana", "Lazio")
-
 dati_regionali %>% 
   # Selezione regioni, e ordina livelli fattore (e quindi posizione grafico) secondo elenco
   filter(regione %in% regioni_scelte) %>% 
@@ -236,8 +255,6 @@ dati_regionali %>%
 # Nuovi tamponi e nuovi positivi
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-# Elenco ordinato di regioni da includere nel grafico
-regioni_scelte <- c("Lombardia", "Veneto", "Piemonte", "Emilia-Romagna", "Toscana", "Lazio")
 
 dati_regionali %>% 
   # Selezione regioni, e ordina livelli fattore (e quindi posizione grafico) secondo elenco
