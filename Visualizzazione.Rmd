@@ -1,15 +1,31 @@
+---
+title: "Visualizzazione dati COVID-19 in Italia"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=F, warning=FALSE, include=FALSE}
 library(tidyverse)
 library(lubridate)
 library(directlabels)
 library(ggthemes)
+library(RColorBrewer)
 library(scales)
 library(tibbletime)
-library(RColorBrewer)
+
+# Tema ggplot minimalista
+theme_set(theme_minimal())
+
+# Imposta lingua data/ora (utile se il sistema è in altre lingue)
+Sys.setlocale("LC_TIME", "Italian") 
 
 # Ripartizioni geografiche ----
 # Ripartizione a 5: Nord-ovest, Nord-est, Centro, Sud, Isole (definizione Istat)
 # Ripartizione a 3: Nord, Centro, Sud
-rip_regioni <- read_csv("data/Italy/ripartizione_regioni.csv", col_types = "ccc") %>% 
+rip_regioni <- read_csv("ripartizione_regioni.csv", col_types = "ccc") %>% 
   mutate(
     ripartizione_3 = factor(ripartizione_3) %>% fct_inorder(),
     ripartizione_5 = factor(ripartizione_5) %>% fct_inorder()
@@ -50,12 +66,12 @@ dati_regionali <- dati_regionali %>%
     nuovi_positivi = totale_casi - lag(totale_casi, 1)
   ) %>%
   ungroup()
+```
 
 
-# 1: Grafici andamento regionale ----
 
-theme_set(theme_bw())
-
+# Grafici andamento regionale ----
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 dati_regionali %>%
   ggplot(aes(x = data, y = totale_casi)) +
   geom_point() +
@@ -66,8 +82,9 @@ dati_regionali %>%
     title = "Totale cumulato casi COVID-19", subtitle = "Per Regione o Provincia Autonoma",
     x = NULL, y = "Casi totali (scala logaritmica)"
   )
+```
 
-
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 dati_regionali %>%
   group_by(regione) %>%
   arrange(regione, data) %>%
@@ -81,10 +98,73 @@ dati_regionali %>%
     title = "Differenza giornaliere decessi COVID-19", subtitle = "Per Regione o Provincia Autonoma",
     x = NULL, y = "Differenza decessi (scala logaritmica)"
   )
+```
+
+# Incrementi Giornalieri per Regione 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Elenco ordinato di regioni da includere nel grafico
+regioni_scelte <- c("Lombardia", "Veneto", "Piemonte", "Emilia-Romagna", "Toscana", "Lazio")
+
+dati_regionali %>% 
+  # Selezione regioni, e ordina livelli fattore (e quindi posizione grafico) secondo elenco
+  filter(regione %in% regioni_scelte) %>% 
+  mutate(regione = fct_relevel(regione, regioni_scelte)) %>%
+  # ristruttura dati per distinguere le variabili nuovi_positivi, nuovi_terapia_int, nuovi_deceduti
+  select(data, regione, nuovi_positivi, nuovi_terapia_int, nuovi_deceduti) %>% 
+  pivot_longer(cols = nuovi_positivi:nuovi_deceduti) %>% 
+  # Riordina e rinomina variabili per il grafico (etichette livelli categorica)
+  mutate(name = factor(name, 
+    levels = c("nuovi_positivi", "nuovi_terapia_int", "nuovi_deceduti"), # nomi osservati nei dati, riordinati
+    labels = c("positivi", "terapia intensiva", "deceduti") # nuovi nomi variabili, in ordine cui sopra
+    )) %>% 
+  ggplot(aes(x = data, y = value, fill = name)) + 
+  geom_col(position = "dodge") + 
+  facet_grid(name ~ regione, scales = "free_y") + 
+  scale_x_date(date_labels = "%d %b") +
+  scale_y_continuous(labels = scales::comma) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(legend.position = "none") +
+  labs(
+    title = "Positivi, Terapie Intensive, Deceduti",
+    x = NULL, y = NULL,
+    subtitle = "Incremento giornaliero"
+    )
+```
 
 
-## 1a: Aree Geografiche ----
+# Curve di casi Totale per Regione 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dati_regionali %>% 
+  # Selezione regioni, e ordina livelli fattore (e quindi posizione grafico) secondo elenco
+  filter(regione %in% regioni_scelte) %>% 
+  mutate(regione = fct_relevel(regione, regioni_scelte)) %>%
+  # ristruttura dati per distinguere le variabili positivi, terapia_int, deceduti
+  select(data, regione, totale_positivi, terapia_intensiva, deceduti) %>% 
+  pivot_longer(cols = totale_positivi:deceduti) %>% 
+  # Riordina e rinomina variabili per il grafico (etichette livelli categorica)
+  mutate(name = factor(name, 
+    levels = c("totale_positivi", "terapia_intensiva", "deceduti"), # nomi osservati nei dati, riordinati
+    labels = c("positivi", "terapia intensiva", "deceduti") # nuovi nomi variabili, in ordine cui sopra
+    )) %>% 
+  ggplot(aes(x = data, y = value, fill = name)) + 
+  geom_col() + 
+  facet_grid(name ~ regione, scales = "free_y") + 
+  scale_x_date(date_labels = "%d %b") + 
+  scale_y_continuous(labels = scales::comma) + 
+  theme(legend.position = "none") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  labs(
+    title = "Positivi, Terapie Intensive, Deceduti",
+    x = NULL, y = NULL,
+    subtitle = "Totali per Regione"
+  )
+```
 
+
+
+# Ripartizioni geografiche
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 nr_regioni_colpite <- 4 ## Seleziona numero di regioni colpite
 
 
@@ -108,7 +188,7 @@ dati_regioni_colpite <- dati_regionali %>%
 ggplot(dati_regioni_colpite, aes(x = data, y = totale_casi, group = regione, label = regione, color = reg_colpita, shape = reg_colpita)) +
   geom_line(size = 0.6) +
   geom_point() +
-  facet_grid(~ ripartizione_5) +
+  facet_grid(~ ripartizione_3) +
   geom_dl(method = "smart.grid", cex = 0.8) +
   scale_y_log10() + annotation_logticks(sides = "l") +
   scale_x_date(breaks = "1 week", date_labels = "%d %b") +
@@ -122,11 +202,13 @@ ggplot(dati_regioni_colpite, aes(x = data, y = totale_casi, group = regione, lab
     title = "Curva Epidemica Per Regioni in Aree Geografiche", subtitle = "Scala logaritmica",
     x = NULL, y = "Totale Casi"
   )
+```
 
-rm(df.temp)
 
-# Tasso tamponi positivi ----
 
+# Tasso tamponi positivi
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 # Definisce funzione per calcolo media mobile su due giorni
 rolling_mean <- rollify(mean, window = 2)
 
@@ -148,10 +230,12 @@ dati_regionali %>%
     y = "Tamponi positivi su tamponi effettuati", x = NULL,
     subtitle = "Media mobile di 2 giorni"
   )
-  
+```
 
- # Nuovi tamponi e nuovi positivi ----
 
+# Nuovi tamponi e nuovi positivi
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 # Elenco ordinato di regioni da includere nel grafico
 regioni_scelte <- c("Lombardia", "Veneto", "Piemonte", "Emilia-Romagna", "Toscana", "Lazio")
 
@@ -174,47 +258,91 @@ dati_regionali %>%
     x = NULL, y = "Nuovi tamponi o positivi",
     subtitle = "Incremento giornaliero"
   )
+```
 
-## Incrementi Giornalieri per Regione ----
 
-dati_regionali %>% 
-  # Selezione regioni, e ordina livelli fattore (e quindi posizione grafico) secondo elenco
-  filter(regione %in% regioni_scelte) %>% 
-  mutate(regione = fct_relevel(regione, regioni_scelte)) %>%
-  # ristruttura dati per includere le variabili nuovi_tamponi e nuovi_positivi
-  select(data, regione, nuovi_deceduti, nuovi_positivi,nuovi_terapia_int) %>% 
-  pivot_longer(cols = nuovi_deceduti:nuovi_positivi:nuovi_terapia_int) %>% 
-  ggplot(aes(x = data, y = value, fill = name)) + 
-  geom_col(position = "dodge") + 
-  facet_wrap(facets = ~ name + regione,as.table = T,ncol = length(regioni_scelte),scales = "free_y") + 
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
-  scale_x_date(breaks = "1 week", date_labels = "%d %b") +
-  scale_y_continuous(labels = scales::comma) + 
-  theme(legend.position = "top") +
-  labs(
-    title = "Positivi, Terapie Intensive, Deceduti",
-    x = NULL, y = NULL,
-    subtitle = "Incremento giornaliero"
-    )
+# Ospedali e terapia intensiva 
 
-## Curve di casi Totale per Regione ----
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Elenco ordinato di regioni da includere nel grafico
+regioni_scelte <- c("Lombardia", "Veneto", "Piemonte", "Emilia-Romagna", "Toscana", "Lazio")
 
 dati_regionali %>% 
   # Selezione regioni, e ordina livelli fattore (e quindi posizione grafico) secondo elenco
   filter(regione %in% regioni_scelte) %>% 
   mutate(regione = fct_relevel(regione, regioni_scelte)) %>%
   # ristruttura dati per includere le variabili nuovi_tamponi e nuovi_positivi
-  select(data, regione, deceduti,totale_positivi,terapia_intensiva) %>% 
-  pivot_longer(cols = deceduti:totale_positivi:terapia_intensiva) %>% 
+  select(data, regione, totale_ospedalizzati, terapia_intensiva) %>% 
+  pivot_longer(cols = totale_ospedalizzati:terapia_intensiva) %>% 
   ggplot(aes(x = data, y = value, fill = name)) + 
   geom_col(position = "dodge") + 
-  facet_wrap(facets = ~ name + regione,as.table = T,ncol = length(regioni_scelte),scales = "free_y") + 
+  facet_wrap(~ regione) + 
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
   scale_x_date(breaks = "1 week", date_labels = "%d %b") +
-  scale_y_continuous(labels = scales::comma) + 
+  scale_y_continuous(labels = scales::comma) +
+  scale_fill_brewer(palette = "Dark2", direction = -1) + 
   theme(legend.position = "top") +
   labs(
-    title = "Positivi, Terapie Intensive, Deceduti",
-    x = NULL, y = NULL,
-    subtitle = "Totali per Regione"
+    title = "Tamponi effettuati e positivi",
+    subtitle = "Incremento giornaliero",
+    x = NULL, y = "Nuovi tamponi o positivi"
   )
+```  
+
+
+# Stock e flow casi 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Elenco ordinato di regioni da includere nel grafico
+regioni_scelte <- c("Lombardia", "Veneto", "Piemonte", "Emilia-Romagna", "Toscana", "Lazio")
+
+dati_regionali %>% 
+  # Selezione regioni, e ordina livelli fattore (e quindi posizione grafico) secondo elenco
+  filter(regione %in% regioni_scelte) %>% 
+  mutate(regione = fct_relevel(regione, regioni_scelte)) %>%
+  select(data, regione, nuovi_positivi, totale_casi) %>%
+  # Esclude casi nuovi_positivi < 0 (problema dati)
+  mutate(nuovi_positivi = if_else(nuovi_positivi < 0, NA_real_, nuovi_positivi)) %>% 
+  ggplot(aes(x = totale_casi, y = nuovi_positivi, color = regione)) + 
+  geom_point() +
+  geom_smooth() +
+  facet_wrap(~ regione) + 
+  scale_x_log10(labels = scales::comma_format(accuracy = 1.0)) +
+  scale_y_log10(labels = scales::comma_format(accuracy = 1.0)) +
+  coord_equal() + 
+  scale_fill_brewer(palette = "Dark2", direction = -1) + 
+  theme(legend.position = "none") +
+  labs(
+    title = paste0("Totale e incremento casi COVID-19 aggiornato al ", dati_regionali$data %>% max() %>% format("%d %B %Y")),
+    subtitle = "Curva di tendenza LOESS; Esclude casi nuovi_positivi < 0 (problema dati)",
+    x = "STOCK: Casi cumulati (scala logaritmica)", y = "FLOW: Nuovi casi (scala logaritmica)"
+  )
+```
+
+
+# Distibuzione nuovi casi giornalieri (bunching?)
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Elenco ordinato di regioni da includere nel grafico
+regioni_scelte <- c("Lombardia", "Veneto", "Piemonte", "Emilia-Romagna", "Toscana", "Lazio")
+
+dati_regionali %>% 
+  # Selezione regioni, e ordina livelli fattore (e quindi posizione grafico) secondo elenco
+  filter(regione %in% regioni_scelte) %>% 
+  mutate(regione = fct_relevel(regione, regioni_scelte)) %>%
+  select(data, regione, nuovi_positivi) %>%
+  ggplot(aes(x = nuovi_positivi, fill = regione)) + 
+  geom_dotplot() +
+  # geom_density() +
+  geom_rug() +
+  facet_wrap(~ regione, scales = "free_x") + 
+  scale_fill_brewer(palette = "Dark2", direction = -1) + 
+  theme(legend.position = "none") +
+  labs(
+    title = "Distribuzione di nuovi casi giornalieri",
+    subtitle = "per regione",
+    x = "Numero di nuovi casi giornalieri", y = "Frequenza"
+  )
+```
