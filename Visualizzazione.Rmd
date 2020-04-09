@@ -141,7 +141,7 @@ epidemia_regioni %>%
 ```
 
 
-# Incrementi giornalieri per Regioni più colpite
+# Incrementi giornalieri per regioni più colpite
 ```{r echo=FALSE, message=FALSE, warning=FALSE, fig.height=15}
 dati_regionali %>% 
   # Selezione regioni, e ordina livelli fattore (e quindi posizione grafico) secondo elenco
@@ -173,7 +173,7 @@ dati_regionali %>%
 ```
 
 # Nuovi decessi giornalieri
-```{r echo=FALSE, message=FALSE, warning=FALSE, fig.width=12}
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.height=15}
 dati_regionali %>%
   # Riordina etichette regioni per rango numero di casi
   arrange(data, rango_regione) %>% 

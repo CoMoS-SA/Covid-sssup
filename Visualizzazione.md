@@ -1,17 +1,17 @@
 Visualizzazione dati COVID-19 in Italia
 ================
 
-Totale casi positivi, ricoveri con sintomi, terapie intensiva, e deceduti
-=========================================================================
+Progressione epidemia nel tempo
+===============================
 
 ![](Visualizzazione_files/figure-markdown_github/unnamed-chunk-2-1.png)
 
-Progressione regionale totale positivi, relativa a inizio epidemia locale
-=========================================================================
+Progressione relativa regioni, da inizio epidemia locale
+========================================================
 
 ![](Visualizzazione_files/figure-markdown_github/unnamed-chunk-3-1.png)
 
-Incrementi giornalieri per Regioni più colpite
+Incrementi giornalieri per regioni più colpite
 ==============================================
 
 ![](Visualizzazione_files/figure-markdown_github/unnamed-chunk-4-1.png)
