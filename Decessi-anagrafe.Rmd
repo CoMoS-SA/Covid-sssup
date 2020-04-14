@@ -1,0 +1,206 @@
+---
+title: "Visualizzazione decessi settimanali nei comuni italiani"
+output: github_document
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(Encoding="UTF-8")
+```
+
+```{r include=FALSE}
+library(tidyverse)
+library(ggiraph)
+library(glue)
+library(lubridate)
+library(tibbletime)
+library(sf)
+
+library(RColorBrewer)
+theme_set(theme_bw())
+
+# Imposta lingua data/ora (utile se il sistema è in altre lingue)
+Sys.setlocale("LC_TIME", "Italian") 
+
+# Importa dataset analitico decessi giornalieri
+# fonte: https://www.istat.it/it/archivio/240401 
+# Notare che la codifica caratteri è "Windows-1252"
+decessi_comuni <- read_csv("./dati_anpr/comune_giorno.csv", locale = locale(encoding = "Windows-1252")) %>% 
+  # codifica classi di classe_eta
+  mutate(classe_eta = factor(
+    CL_ETA,
+    levels = c("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21"),
+    labels = c("0", "1-4", "5-9", "10-14", "15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70-74", "75-79", "80-84", "85-89", "90-94", "95-99", "100+")
+  ),
+  # codifica data decesso: la variabile `GE` rappresenta mese e giorno (anno variabile), nel formato MMGG
+  # usiamo l'anno 2020 come riferimento. I decessi degli anni precedenti sono indicati nella combinazione (anno, decessi)
+  giorno_mese = paste0(GE, "2020") %>% mdy()
+  ) %>% 
+  # riordina e rinomina colonne per comodità
+  select(
+    regione = NOME_REGIONE,
+    comune = NOME_COMUNE, 
+    classe_eta, giorno_mese, everything()
+  ) %>% 
+  # ristruttura dati in formato lungo per facilitare il confronto con anni precedenti
+  # le colonne (sesso, anno) diventano righe aggiuntive
+  pivot_longer(cols = MASCHI_15:TOTALE_20, names_to = "classe", values_to = "decessi") %>%
+  # scorpora variabile decesso per genere in anni precedenti 
+  separate(classe, into = c("sesso", "anno"), sep = "_") %>% 
+  mutate(
+    anno = paste0("20", anno),
+    decessi = na_if(decessi, 9999), # 9999 è usato per indicare valori mancanti (es, in date future)
+    sesso = factor(sesso) 
+  ) %>% 
+select(regione, comune, codice_comune = COD_PROVCOM, giorno_mese, anno, sesso, classe_eta, decessi) 
+
+gc()
+```
+
+
+## Mortalità giornaliera nel comune di Bergamo
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+comune_selezionato <- "Bergamo"
+
+decessi_comuni %>% 
+  # dichiara indice tempo tabella, per calcoli totali settimanali
+  as_tbl_time(index = giorno_mese) %>% 
+  filter(comune == comune_selezionato, sesso == "TOTALE") %>%
+  # calcola decessi settimanali 
+  # collapse_by("weekly") %>%
+  group_by(giorno_mese, anno) %>% 
+  summarise(decessi = sum(decessi)) %>%
+  group_by(anno) %>%
+  mutate(dec_cum = cumsum(decessi)) %>%
+  ggplot(aes(x = giorno_mese, y = dec_cum, color = anno)) +
+  geom_step() +
+  scale_color_brewer(palette = "YlOrBr") +
+  scale_x_date(date_labels = "%V: %e %b") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  labs(
+    title = glue("Decessi giornalieri cumulativi nel comune di {comune_selezionato}"),
+    subtitle = "Confronto tra primo trimestre 2020 con corrispondenti 2015-2019",
+    y = "Totale decessi"
+  )
+```
+
+
+## Decessi giornalieri cumulativi nei comuni campione comuni Istat
+```{r echo=FALSE, warning=FALSE}
+# Lista dei comuni inclusi nel campione Istat/Anpr
+# Ovvero quelli che hanno almeno una rilevazione mortalità nel 2020
+decessi_comuni %>%
+  filter(anno == 2020) %>%
+  group_by(comune) %>%
+  summarise(campione = any(!is.na(decessi))) %>%
+  filter(campione == TRUE) %>%
+  select(comune) -> comune_anpr
+
+decessi_comuni %>% 
+  # seleziona solo comuni nel campione
+  inner_join(comune_anpr, by = "comune") %>% 
+  filter(sesso == "TOTALE" & giorno_mese < dmy("28/03/2020")) %>%
+  # in ogni data, somma i decessi (tra comuni e tutte le fasce d'età)
+  group_by(giorno_mese, anno) %>% 
+  summarise(decessi = sum(decessi, na.rm = T)) %>%
+  # calcola totale cumulativo decessi giornalieri
+  group_by(anno) %>%
+  mutate(dec_cum = cumsum(decessi)) %>%
+  ggplot(aes(x = giorno_mese, y = dec_cum, color = anno)) +
+  geom_step() +
+  scale_color_brewer(palette = "YlOrBr") +
+  scale_x_date(date_labels = "%V: %e %b") + 
+  scale_y_continuous(labels = scales::comma) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  labs(
+    title = "Decessi giornalieri cumulativi nei comuni campione Istat\nCampione non rappresentativo: 1,449 comuni Anpr, con eccesso mortalità",
+    subtitle = "Confronto tra primo trimestre 2020 con corrispondenti 2015-2019",
+    y = "Totale decessi"
+  )
+```
+
+
+# Totale decessi settimanali Bergami 2020, rispetto ad anni precedenti, per sesso e fasce d'età
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+decessi_comuni %>% 
+  # dichiara indice tempo tabella, per calcoli totali settimanali
+  as_tbl_time(index = giorno_mese) %>% 
+  filter(comune == "Bergamo") %>%
+  # esclude non ancora pervenute
+  filter(giorno_mese < dmy("28/03/2020")) %>% 
+  # Raggruppa classi di classe_eta
+  mutate(
+    classe_eta = fct_collapse(
+      classe_eta,
+      `0-34` = c("0", "1-4", "5-9", "10-14", "15-19", "20-24", "25-29", "30-34"),
+      `35-54` = c("35-39", "40-44", "45-49", "50-54"),
+      `55-74` = c("55-59", "60-64", "65-69", "70-74"),
+      `75+`   = c("75-79", "80-84", "85-89", "90-94", "95-99", "100+")
+    )
+  ) %>% 
+  # calcola decessi settimanali 
+  collapse_by("weekly") %>%
+  group_by(giorno_mese, classe_eta, anno, sesso) %>% 
+  summarise(decessi = sum(decessi)) %>% 
+  ggplot(aes(x = giorno_mese, y = decessi, color = anno)) +
+  geom_point() + geom_line() +
+  scale_color_brewer(palette = "YlOrBr") +
+  scale_x_date(date_labels = "%V: %e %b") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  facet_grid(classe_eta ~ sesso) +
+  labs(
+    title = "Totale decessi settimanali nel comune di Bergamo, per sesso e classi di età",
+    subtitle = "Confronto tra prime settimane 2020 con corrispondenti 2015-2019",
+    y = "Totale decessi"
+  )
+```
+  
+
+## Sperimentale: mappe eccesso mortalità
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+mappa_comuni <- read_sf("./mappe/Com01012020_g/Com01012020_g_WGS84.shp") 
+
+decessi_extra_comuni <- decessi_comuni %>%
+  inner_join(comune_anpr, by = "comune") %>% 
+  filter(sesso == "TOTALE") %>%
+  filter(giorno_mese > dmy("01/02/2020"), giorno_mese < dmy("28/03/2020")) %>% 
+  group_by(regione, comune, codice_comune, anno) %>% 
+  summarise(decessi = sum(decessi)) %>% 
+  pivot_wider(names_from = anno, values_from = decessi) %>% 
+  mutate(multiplo_decessi = `2020` / mean(c(`2015`:`2019`)))
+
+mappa_comuni %>%
+  filter(COD_REG == 3) %>% 
+  left_join(decessi_extra_comuni, by = c("PRO_COM_T" = "codice_comune")) %>% 
+  ggplot() + geom_sf(aes(fill = multiplo_decessi)) +
+  scale_fill_distiller("multiplo\ndecessi", palette = "YlOrRd", na.value = "grey90", direction = 1) +
+  theme_minimal() + coord_sf(datum = NA) +
+  labs(
+    title = "Eccesso mortalità nei comuni della Lombardia",
+    subtitle = "Calcolo sperimentale: multiplo decessi nel periodo febbraio-marzo 2020,\nrispetto a media anni precedenti", y = NULL, x = NULL
+  )
+```
+
+
+
+```{r eval=FALSE, include=FALSE}
+library(ggiraph)
+
+dati_lombardia <- mappa_comuni %>%
+  filter(COD_REG == 3) %>% 
+  left_join(decessi_extra_comuni, by = c("PRO_COM_T" = "codice_comune"))
+
+g <- ggplot(dati_lombardia) +
+  geom_sf_interactive(aes(fill = multiplo_decessi, tooltip = COMUNE)) +
+  scale_fill_distiller(palette = "YlOrRd", na.value = "grey90", direction = 1) +
+  theme_minimal() +
+  labs(
+    title = "Eccesso mortalità nei comuni della Lombardia",
+    subtitle = "Calcolo sperimentale: multiplo decessi nel periodo febbraio-marzo 2020,\nrispetto a media anni precedenti", y = NULL, x = NULL
+  )
+
+girafe(ggobj = g)
+```
+
